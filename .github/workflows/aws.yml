@@ -11,7 +11,7 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-  IMAGE_TAG: latest
+  IMAGE_TAG: judge-ide-latest
 
 jobs:
   build-and-push:
@@ -46,7 +46,7 @@ jobs:
       - name: Build image
         shell: bash
         run: |
-          SHORT_SHA="${GITHUB_SHA::7}"
+          SHORT_SHA="judge-ide-${GITHUB_SHA::7}"
           docker build --no-cache \
             -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}" \
             -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${SHORT_SHA}" \
