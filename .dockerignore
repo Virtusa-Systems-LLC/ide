@@ -1,0 +1,5 @@
+.git
+.github
+serve.err
+serve.log
+node_modules
