@@ -76,8 +76,8 @@ jobs:
           docker push "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
           docker push "${ECR_REGISTRY}/${ECR_REPOSITORY}:${SHORT_SHA}"
 
-      - name: Update ECS service
-        shell: bash
+      # - name: Update ECS service
+      #   shell: bash
         # run: |
         #   aws ecs update-service \
         #     --cluster "${{ vars.ECS_CLUSTER }}" \
