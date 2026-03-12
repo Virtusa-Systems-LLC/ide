@@ -1,6 +1,6 @@
 {
-    "name": "Judge0 IDE",
-    "short_name": "Judge0 IDE",
+    "name": "VSS IDE",
+    "short_name": "VSS IDE",
     "description": "Free and open-source online code editor and compiler",
     "display": "standalone",
     "start_url": "/",
