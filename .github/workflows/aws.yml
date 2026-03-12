@@ -1,35 +1,52 @@
-name: Build And Push IDE Image
+name: Deploy to Amazon ECS
 
 on:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: "Build and push new image? (true/false)"
+        required: true
+        default: "true"
   push:
     branches:
       - main
-  workflow_dispatch:
+  release:
+    types: [created]
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-  ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
   IMAGE_TAG: judge-ide-latest
 
 jobs:
-  build-and-push:
-    name: Build And Push To ECR
+  deploy:
+    name: Deploy Judge IDE
     runs-on: self-hosted
+    environment: production
 
     steps:
-      - name: Checkout repository
+      - name: Show GitHub Repository & Branch Name
+        shell: bash
+        run: echo "${{ github.repository }} running on branch ${GITHUB_REF##*/}"
+
+      - name: Set environment variables
+        shell: bash
+        run: |
+          echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> "$GITHUB_ENV"
+          echo "BRANCH_NAME=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          clean: true
+          fetch-depth: 1
 
       - name: Validate required configuration
         shell: bash
         run: |
           test -n "${AWS_REGION}" || { echo "AWS_REGION is required"; exit 1; }
-          test -n "${ECR_REGISTRY}" || { echo "Set repository variable ECR_REGISTRY"; exit 1; }
           test -n "${ECR_REPOSITORY}" || { echo "Set repository variable ECR_REPOSITORY"; exit 1; }
+          test -n "${{ vars.ECS_CLUSTER }}" || { echo "Set repository variable ECS_CLUSTER"; exit 1; }
+          test -n "${{ vars.ECS_SERVICE }}" || { echo "Set repository variable ECS_SERVICE"; exit 1; }
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -41,31 +58,28 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+        with:
+          mask-password: false
 
-      - name: Build image
+      - name: Build & Push Judge IDE Image
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.build == 'true' }}
         shell: bash
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          DOCKER_BUILDKIT: 1
         run: |
           SHORT_SHA="judge-ide-${GITHUB_SHA::7}"
-          docker build --no-cache \
+          docker build --progress=plain \
             -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}" \
             -t "${ECR_REGISTRY}/${ECR_REPOSITORY}:${SHORT_SHA}" \
             .
-          echo "SHORT_SHA=${SHORT_SHA}" >> "${GITHUB_ENV}"
-
-      - name: Push image
-        shell: bash
-        run: |
           docker push "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
           docker push "${ECR_REGISTRY}/${ECR_REPOSITORY}:${SHORT_SHA}"
-          echo "Images pushed:"
-          echo " - ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
-          echo " - ${ECR_REGISTRY}/${ECR_REPOSITORY}:${SHORT_SHA}"
 
       - name: Update ECS service
-        if: ${{ vars.ECS_CLUSTER != '' && vars.ECS_SERVICE != '' }}
         shell: bash
-        run: |
-          aws ecs update-service \
-            --cluster "${{ vars.ECS_CLUSTER }}" \
-            --service "${{ vars.ECS_SERVICE }}" \
-            --force-new-deployment
+        # run: |
+        #   aws ecs update-service \
+        #     --cluster "${{ vars.ECS_CLUSTER }}" \
+        #     --service "${{ vars.ECS_SERVICE }}" \
+        #     --force-new-deployment
